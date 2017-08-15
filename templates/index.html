@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="description" content="">
+    <meta name="author" content="">
+
+    <title>Perfect list </title>
+
+    <!-- Bootstrap Core CSS -->
+    <link href="static/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Custom Fonts -->
+    <link href="../static/vendor/font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+    <link href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,700,300italic,400italic,700italic" rel="stylesheet" type="text/css">
+
+    <!-- Custom CSS -->
+    <link href="static/css/stylish-portfolio.css" rel="stylesheet">
+
+    <style type="text/css">legend {
+    font-weight: bold;
+}
+div.tableContainer {
+    display: table;
+    border-spacing: 5px;
+}
+div.tableRow {
+    display: table-row;
+}
+div.tableRow label {
+    display: table-cell;
+    text-align: right;
+}
+div.tableRow input {
+    display: table-cell;
+}
+
+ul#todoList {
+    list-style-type: none;
+    margin-left: 0px;
+    padding-left: 0px;
+}
+
+ul#todoList li {
+    position: relative;
+    padding: 5px;
+    margin: 5px;
+    background-color: blue;
+    border: 2px inset #ededed;
+}
+
+ul#todoList li span.notDone {
+    margin-right: 10px;
+    background-color: #FF9999;
+    cursor: pointer;
+}
+ul#todoList li span.done {
+    margin-right: 10px;
+    background-color: #80CC80;
+    cursor: pointer;
+
+}
+
+ul#todoList li span.delete {
+    display: inline-block;
+    position: absolute;
+    right: 5px;
+    cursor: pointer;
+}
+div#map {
+    width: 400px;
+    height: 400px;
+}
+    </style>
+
+ <script type="text/javascript">
+	function Todo(id, task, who, dueDate, latitude, longitude) {
+    this.id = id;
+    this.task = task;
+    this.who = who;
+    this.dueDate = dueDate;
+    this.done = false;
+    this.latitude = null;
+    this.longitude = null;
+}
+
+var todos = new Array();
+
+window.onload = init;
+
+function init() {
+    var submitButton = document.getElementById("submit");
+    submitButton.onclick = getFormData;
+
+    // get the search term and call the click handler
+    var searchButton = document.getElementById("searchButton");
+    searchButton.onclick = searchTodos;
+
+
+    getTodoItems();
+}
+
+function getTodoItems() {
+    if (localStorage) {
+        for (var i = 0; i < localStorage.length; i++) {
+            var key = localStorage.key(i);
+            if (key.substring(0, 4) == "todo") {
+                var item = localStorage.getItem(key);
+                var todoItem = JSON.parse(item);
+                todos.push(todoItem);
+            }
+        }
+        addTodosToPage();
+    }
+    else {
+        console.log("Error: you don't have localStorage!");
+    }
+}
+
+function addTodosToPage() {
+    var ul = document.getElementById("todoList");
+    var listFragment = document.createDocumentFragment();
+    for (var i = 0; i < todos.length; i++) {
+        var todoItem = todos[i];
+        var li = createNewTodo(todoItem);
+        listFragment.appendChild(li);
+    }
+    ul.appendChild(listFragment);
+}
+
+function addTodoToPage(todoItem) {
+    var ul = document.getElementById("todoList");
+    var li = createNewTodo(todoItem);
+    ul.appendChild(li);
+    document.forms[0].reset();
+}
+
+function createNewTodo(todoItem) {
+    var li = document.createElement("li");
+    li.setAttribute("id", todoItem.id);
+
+    var spanTodo = document.createElement("span");
+    spanTodo.innerHTML =
+        todoItem.who + " needs to " + todoItem.task + " by " + todoItem.dueDate;
+
+    var spanDone = document.createElement("span");
+    if (!todoItem.done) {
+        spanDone.setAttribute("class", "notDone");
+        spanDone.innerHTML = "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;";
+    }
+    else {
+        spanDone.setAttribute("class", "done");
+        spanDone.innerHTML = "&nbsp;&#10004;&nbsp;";
+    }
+
+    // add the click handler to update the done state
+    spanDone.onclick = updateDone;
+
+    // add the delete link
+    var spanDelete = document.createElement("span");
+    spanDelete.setAttribute("class", "delete");
+    spanDelete.innerHTML = "&nbsp;&#10007;&nbsp;";
+
+    // add the click handler to delete
+    spanDelete.onclick = deleteItem;
+
+    li.appendChild(spanDone);
+    li.appendChild(spanTodo);
+    li.appendChild(spanDelete);
+
+    return li;
+}
+
+function sendLocation(position, todoItem) {
+    var latitude = position.coords.latitude;
+    var longitude = position.coords.longitude;
+    getLocation(position, todoItem);
+}
+
+function getFormData() {
+    var task = document.getElementById("task").value;
+    if (checkInputText(task, "Please enter a task")) return;
+
+    var who = document.getElementById("who").value;
+    if (checkInputText(who, "Please enter a person to do the task")) return;
+
+    var date = document.getElementById("dueDate").value;
+    if (checkInputText(date, "Please enter a due date")) return;
+    // later, process date here
+
+    var latitude=null;
+    var longitude=null;
+
+    var id = (new Date()).getTime();
+    var todoItem = new Todo(id, task, who, date, latitude, longitude);
+    todos.push(todoItem);
+    addTodoToPage(todoItem);
+    saveTodoItem(todoItem);
+    findLocation(todoItem);
+    sendLocation(position,todoItem);
+
+
+
+    // hide search results
+    hideSearchResults();
+}
+
+function checkInputText(value, msg) {
+    if (value == null || value == "") {
+        alert(msg);
+        return true;
+    }
+    return false;
+}
+
+function saveTodoItem(todoItem) {
+    if (localStorage) {
+        var key = "todo" + todoItem.id;
+        var item = JSON.stringify(todoItem);
+        localStorage.setItem(key, item);
+    }
+    else {
+        console.log("Error: you don't have localStorage!");
+    }
+}
+
+function updateDone(e) {
+    var span = e.target;
+    var id = span.parentElement.id;
+    var item;
+    for (var i = 0; i < todos.length; i++) {
+        if (todos[i].id == id) {
+            item = todos[i];
+            break;
+        }
+    }
+    if (item.done == false) {
+        item.done = true;
+        span.setAttribute("class", "done");
+        span.innerHTML = "&nbsp;&#10004;&nbsp;";
+    }
+    else if (item.done == true) {
+        item.done = false;
+        span.setAttribute("class", "notDone");
+        span.innerHTML = "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;";
+    }
+    var itemJson = JSON.stringify(item);
+    var key = "todo" + id;
+    localStorage.setItem(key, itemJson);
+}
+
+function deleteItem(e) {
+    var span = e.target;
+    var id = span.parentElement.id;
+
+    // find and remove the item in localStorage
+    var key = "todo" + id;
+    localStorage.removeItem(key);
+
+    // find and remove the item in the array
+    for (var i = 0; i < todos.length; i++) {
+        if (todos[i].id == id) {
+            todos.splice(i, 1);
+            break;
+        }
+    }
+
+    // find and remove the item in the page
+    var li = e.target.parentElement;
+    var ul = document.getElementById("todoList");
+    ul.removeChild(li);
+
+    // hide search results
+    hideSearchResults();
+}
+
+// Search
+function searchTodos() {
+    // new search, so clear previous results
+    clearSearchResultsList();
+    // get the text to search for
+    var searchTerm = document.getElementById("searchTerm").value;
+    var count = 0;
+    // check all the todos in the list
+    for (var i = 0; i < todos.length; i++) {
+        var todoItem = todos[i];
+        // make a regular expression to match the search term, regardless of case
+        var re = new RegExp(searchTerm, "i");
+        // try matching the expression with the task and the who from the to do item
+        // in this case, we don't need the match results array; we just need to know
+        // it exists for this to do item. If there is no match results, then the
+        // result of match is null, so the "if" test will fail.
+        if (todoItem.task.match(re) || todoItem.who.match(re)) {
+            // if we find a match, add the to do item to the search results
+            addSearchResultToPage(todoItem);
+            // keep a count of the number of items we match
+            count++;
+        }
+    }
+    // if we don't match any items, display "no results" in the search results list
+    if (count == 0) {
+        var ul = document.getElementById("searchResultsList");
+        var li = document.createElement("li");
+        li.innerHTML = "No results!";
+        ul.appendChild(li);
+    }
+    // show the search results
+    showSearchResults();
+}
+
+// add a search result to the search results list in the page
+function addSearchResultToPage(todoItem) {
+    var ul = document.getElementById("searchResultsList");
+    var li = document.createElement("li");
+    li.innerHTML =
+        todoItem.who + " needs to " + todoItem.task + " by " + todoItem.dueDate;
+    ul.appendChild(li);
+}
+
+// clear the previous search results by removing all the children of the "searchResultsList" ul element
+function clearSearchResultsList() {
+    var ul = document.getElementById("searchResultsList");
+    while (ul.firstChild) {
+        ul.removeChild(ul.firstChild);
+    }
+}
+
+// This is just a nifty trick to show/hide the search results, so we don't show anything
+// unless the user's just searched. Extra credit! :-)
+function hideSearchResults() {
+    var div = document.getElementById("searchResults");
+    div.style.display = "none";
+    clearSearchResultsList();
+}
+
+function showSearchResults() {
+    var div = document.getElementById("searchResults");
+    div.style.display = "block";
+    document.forms[0].reset();
+}
+</script>
+
+</head>
+
+<body>
+    <!-- Navigation -->
+    <a id="menu-toggle" href="#" class="btn btn-dark btn-lg toggle"><i class="fa fa-bars"></i></a>
+    <nav id="sidebar-wrapper">
+        <ul class="sidebar-nav">
+            <a id="menu-close" href="#" class="btn btn-light btn-lg pull-right toggle"><i class="fa fa-times"></i></a>
+            <li class="sidebar-brand">
+                <a href="#top" onclick=$( "#menu-close").click();>My To-do List</a>
+            </li>
+            <li>
+                <a href="#top" onclick=$( "#menu-close").click();>Home</a>
+            </li>
+            <li>
+                <a href="#about" onclick=$( "#menu-close").click();>About</a>
+            </li>
+            <li>
+                <a href="#services" onclick=$( "#menu-close").click();>Services</a>
+            </li>
+            <li>
+                <a href="#portfolio" onclick=$( "#menu-close").click();>Portfolio</a>
+            </li>
+            <li>
+                <a href="#contact" onclick=$( "#menu-close").click();>Contact</a>
+            </li>
+        </ul>
+    </nav>
+
+    <!-- Header -->
+    <header class="header" id="top">
+        <div class="text-vertical-center">
+            <h1>To-do List</h1>
+            <h3>Free creation &amp; easy track of to-do's</h3>
+            <br>
+            <a href="#about" class="page-scroll btn btn-dark btn-lg">Start the amazing experience</a>
+        </div>
+    </header>
+
+    <!-- About -->
+    <section id="about" class="about">
+        <div class="container text-center">
+            <h2>A well planned day is the next tip to your success!</h2>
+            <p class="lead">This workflow features the best plan <a target="_blank" href="http://join.deathtothestockphoto.com/">Death </a>.</p>
+        </div>
+
+        <!-- /.container -->
+    </section>
+
+    <!-- Services -->
+    <!-- The circle icons use Font Awesome's stacked icon classes. For more information, visit http://fontawesome.io/examples/ -->
+    <section id="services" class="services bg-primary text-white">
+        <div class="container">
+            <div class="row text-center">
+                <div class="col-lg-10 mx-auto">
+                    <h2>Your list</h2>
+                    <hr class="small">
+                    <ul id="todoList">
+</ul>
+<div id = map>
+</div>
+<form>
+    <fieldset>
+        <legend>Add a new to do item</legend>
+        <div class="tableContainer">
+            <div class="tableRow">
+                <label for="task">Task: </label>
+                <div class="col-md-6 ">
+                <input type="text" id="task" class="form-control"  size="35" placeholder="Task at hand" name="name" required>
+                </div>
+
+            </div>
+            <div class="tableRow"> 
+                <label for="who">Who should do it: </label>
+                <div class="col-md-6 ">
+                <input type="text" id="who" class="form-control"  size="35" placeholder="Name" required>
+                </div>
+            </div>
+            <div class="tableRow">
+                <label for="dueDate">Due Date: </label>
+                <div class="col-md-6 ">
+                <input type="date" id="dueDate"  size="95" class="form-control">
+                </div>
+            </div>
+            <div class="tableRow">
+                <label for="submit"></label>
+                <input class="btn btn-lg btn-dark" type="button" id="submit" value="submit">
+            </div>
+        </div>
+    </fieldset>
+</form>
+
+<form>
+    <fieldset>
+        <legend>Search to do list</legend>
+        <div class = "tableContainer">
+            <div class = "tableRow">
+                <label for = "searchTerm">Search for: </label>
+                <div class="col-md-6 ">
+                <input type="text" id="searchTerm" class="form-control"  size="35" placeholder = "search to do list" >
+                </div>
+                <label for = "Search"></label>
+                <input  class="btn btn-lg btn-dark" type = "button" id = "searchButton" value = "Search">
+                
+            </div>
+        </div>
+    </fieldset>
+</form>
+<div>
+    <h2>Results</h2>
+    <ul id ="searchResultsList">
+    </ul>
+</div>
+                 
+                    <!--<div class="row">
+                        <div class="col-md-3 col-sm-6">
+                            <div class="service-item">
+                                <span class="fa-stack fa-4x">
+                                <i class="fa fa-circle fa-stack-2x"></i>
+                                <i class="fa fa-cloud fa-stack-1x text-primary"></i>
+                            </span>
+                                <h4>
+                                    <strong>Service Name</strong>
+                                </h4>
+                                <p>Lorem ipsum dolor sit amet, consectetur adipisicing elit.</p>
+                                <a href="#" class="btn btn-light">Learn More</a>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-sm-6">
+                            <div class="service-item">
+                                <span class="fa-stack fa-4x">
+                                <i class="fa fa-circle fa-stack-2x"></i>
+                                <i class="fa fa-compass fa-stack-1x text-primary"></i>
+                            </span>
+                                <h4>
+                                    <strong>Service Name</strong>
+                                </h4>
+                                <p>Lorem ipsum dolor sit amet, consectetur adipisicing elit.</p>
+                                <a href="#" class="btn btn-light">Learn More</a>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-sm-6">
+                            <div class="service-item">
+                                <span class="fa-stack fa-4x">
+                                <i class="fa fa-circle fa-stack-2x"></i>
+                                <i class="fa fa-flask fa-stack-1x text-primary"></i>
+                            </span>
+                                <h4>
+                                    <strong>Service Name</strong>
+                                </h4>
+                                <p>Lorem ipsum dolor sit amet, consectetur adipisicing elit.</p>
+                                <a href="#" class="btn btn-light">Learn More</a>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-sm-6">
+                            <div class="service-item">
+                                <span class="fa-stack fa-4x">
+                                <i class="fa fa-circle fa-stack-2x"></i>
+                                <i class="fa fa-shield fa-stack-1x text-primary"></i>
+                            </span>
+                                <h4>
+                                    <strong>Service Name</strong>
+                                </h4>
+                                <p>Lorem ipsum dolor sit amet, consectetur adipisicing elit.</p>
+                                <a href="#" class="btn btn-light">Learn More</a>
+                            </div>
+                        </div>-->
+                    </div>
+                    <!-- /.row (nested) -->
+                </div>
+                <!-- /.col-lg-10 -->
+            </div>
+            <!-- /.row -->
+        </div>
+        <!-- /.container -->
+    </section>
+
+    <!-- Callout -->
+    <aside class="callout">
+        <div class="text-vertical-center">
+            <h1></h1>
+        </div>
+    </aside>
+
+    <!-- Portfolio -->
+    <section id="portfolio" class="portfolio">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-10 mx-auto text-center">
+                    <h2>Your Prerequisites</h2>
+                    <hr class="small">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="portfolio-item">
+                                <a href="#">
+                                    <img class="img-portfolio img-fluid" src="static/img/portfolio-1.jpg">
+                                </a>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="portfolio-item">
+                                <a href="#">
+                                    <img class="img-portfolio img-fluid" src="static/img/portfolio-2.jpg">
+                                </a>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="portfolio-item">
+                                <a href="#">
+                                    <img class="img-portfolio img-fluid" src="static/img/portfolio-3.jpg">
+                                </a>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="portfolio-item">
+                                <a href="#">
+                                    <img class="img-portfolio img-fluid" src="static/img/portfolio-4.jpg">
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- /.row (nested) -->
+                    <a href="#" class="btn btn-dark">View More Items</a>
+                </div>
+                <!-- /.col-lg-10 -->
+            </div>
+            <!-- /.row -->
+        </div>
+        <!-- /.container -->
+    </section>
+
+    <!-- Call to Action -->
+    <aside class="call-to-action bg-primary text-white">
+        <div class="container text-center">
+            <h3>Accomplished tasks.</h3>
+            <a href="#" class="btn btn-lg btn-light">Monday!</a>
+            <a href="#" class="btn btn-lg btn-dark">Tuesday!</a>
+            <a href="#" class="btn btn-lg btn-light">Wednesday!</a>
+            <a href="#" class="btn btn-lg btn-dark">Thursday!</a>
+            <a href="#" class="btn btn-lg btn-light">Friday!</a>
+            <a href="#" class="btn btn-lg btn-dark">Weekend!</a>
+        </div>
+    </aside>
+
+    <!-- Map 
+    <section id="contact" class="map">
+        <iframe width="100%" height="100%" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?f=q&amp;source=s_q&amp;hl=en&amp;geocode=&amp;q=Twitter,+Inc.,+Market+Street,+San+Francisco,+CA&amp;aq=0&amp;oq=twitter&amp;sll=28.659344,-81.187888&amp;sspn=0.128789,0.264187&amp;ie=UTF8&amp;hq=Twitter,+Inc.,+Market+Street,+San+Francisco,+CA&amp;t=m&amp;z=15&amp;iwloc=A&amp;output=embed"></iframe>
+        <br />
+        <small>
+            <a href="https://maps.google.com/maps?f=q&amp;source=embed&amp;hl=en&amp;geocode=&amp;q=Twitter,+Inc.,+Market+Street,+San+Francisco,+CA&amp;aq=0&amp;oq=twitter&amp;sll=28.659344,-81.187888&amp;sspn=0.128789,0.264187&amp;ie=UTF8&amp;hq=Twitter,+Inc.,+Market+Street,+San+Francisco,+CA&amp;t=m&amp;z=15&amp;iwloc=A"></a>
+        </small>
+    </section> 
+    -->
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-10 mx-auto text-center">
+                    <h4><strong>My details</strong>
+                    </h4>
+                    <p>Makerere University - Bsc.Telecommunications Engineering
+                        <br>Makerere ,Kampala ,Uganda</p>
+                    <ul class="list-unstyled">
+                        <li><i class="fa fa-phone fa-fw"></i> +256784875007</li>
+                        <li><i class="fa fa-envelope-o fa-fw"></i> <a href="mailto:abrahamkakooza@gmail.com">abrahamkakooza@gmail.com</a>
+                        </li>
+                    </ul>
+                    <br>
+                    <ul class="list-inline">
+                        <li class="list-inline-item">
+                            <a href="#"><i class="fa fa-facebook fa-fw fa-3x"></i></a>
+                        </li>
+                        <li class="list-inline-item">
+                            <a href="#"><i class="fa fa-twitter fa-fw fa-3x"></i></a>
+                        </li>
+                        <li class="list-inline-item">
+                            <a href="#"><i class="fa fa-dribbble fa-fw fa-3x"></i></a>
+                        </li>
+                    </ul>
+                    <hr class="small">
+                    <p class="text-muted">Copyright &copy; Kakooza Abraham Jerry 2017</p>
+                </div>
+            </div>
+        </div>
+        <a id="to-top" href="#top" class="btn btn-dark btn-lg page-scroll"><i class="fa fa-chevron-up fa-fw fa-1x"></i></a>
+    </footer>
+
+    <!-- Bootstrap core JavaScript -->
+    <script src="../static/vendor/jquery/jquery.min.js"></script>
+    <script src="../static/vendor/popper/popper.min.js"></script>
+    <script src="../static/vendor/bootstrap/js/bootstrap.min.js"></script>
+
+    <!-- Plugin JavaScript -->
+    <script src="../static/vendor/jquery-easing/jquery.easing.min.js"></script>
+
+    <!-- Custom scripts for this template -->
+    <script src="js/stylish-portfolio.js"></script>
+
+</body>
+
+</html>
